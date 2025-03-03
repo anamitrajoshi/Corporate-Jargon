@@ -581,23 +581,24 @@ class QuizCompletedScene extends Phaser.Scene {
     }
 
     create() {
-        // Add background image and center it
-        const bg = this.add.image(400, 300, 'background');
-        bg.setDisplaySize(800, 600);
+        // Add background image and scale it to cover the entire screen
+        const bg = this.add.image(0, 0, 'background').setOrigin(0, 0);
+        bg.setDisplaySize(this.scale.width, this.scale.height);
 
         // Centered text
-        this.add.text(400, 150, "QUIZ COMPLETED!", { fontSize: "48px", fill: "#ffffff" }).setOrigin(0.5);
-        this.add.text(400, 250, `Your Score: ${this.score} / ${this.total}`, { fontSize: "32px", fill: "#00ff00" }).setOrigin(0.5);
+        this.add.text(this.scale.width / 2, this.scale.height / 4, "QUIZ COMPLETED!", { fontSize: "48px", fill: "#ffffff" }).setOrigin(0.5);
+        this.add.text(this.scale.width / 2, this.scale.height / 3, `Your Score: ${this.score} / ${this.total}`, { fontSize: "32px", fill: "#00ff00" }).setOrigin(0.5);
 
         // Exit button and text, centered
-        let exitButton = this.add.rectangle(400, 400, 200, 60, 0xFF4500).setOrigin(0.5).setInteractive();
-        this.add.text(400, 400, "Exit to Menu", { fontSize: "24px", fill: "#ffffff" }).setOrigin(0.5);
+        let exitButton = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, 200, 60, 0xFF4500).setOrigin(0.5).setInteractive();
+        this.add.text(this.scale.width / 2, this.scale.height / 2, "Exit to Menu", { fontSize: "24px", fill: "#ffffff" }).setOrigin(0.5);
 
         exitButton.on("pointerdown", () => {
             this.scene.start("levelsScene");
         });
     }
 }
+
 
 
         const config = {
