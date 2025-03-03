@@ -27,14 +27,14 @@ const QuestionSchema = new mongoose.Schema({
 
 const Question = mongoose.model("Question", QuestionSchema);
 
-// Serve static files (like index.html and assets)
-app.use(express.static(path.join(__dirname, "public")));
-app.use("/assets", express.static(path.join(__dirname, "assets")));
 
-// Root route (serves index.html)
+app.use(express.static(path.join(__dirname)));
+
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "index.html"));
 });
+
+app.use("/assets", express.static(path.join(__dirname, "assets")));
 
 // API route to fetch questions by level
 app.get("/questions/:level", async (req, res) => {
