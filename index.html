@@ -555,7 +555,7 @@ class CharacterDisplayScene extends Phaser.Scene {
         this.correctAnswers = 0;
         this.questions = [];
         this.selectedCharacter = this.registry.get('selectedCharacter') || 'character1_normal';
-        this.answered = false; // Track if the current question has been answered
+        this.answeredQuestions = {}; // Track answers per question
     }
 
     preload() {
@@ -566,12 +566,6 @@ class CharacterDisplayScene extends Phaser.Scene {
         this.load.image('character1_happy', 'assets/character1_happy.png');
         this.load.image('character1_sad', 'assets/character1_sad.png');
         this.load.image('character1_normal', 'assets/character1_normal.png');
-        this.load.image('character2_happy', 'assets/character2_happy.png');
-        this.load.image('character2_sad', 'assets/character2_sad.png');
-        this.load.image('character2_normal', 'assets/character2_normal.png');
-        this.load.image('character3_happy', 'assets/character3_happy.png');
-        this.load.image('character3_sad', 'assets/character3_sad.png');
-        this.load.image('character3_normal', 'assets/character3_normal.png');
     }
 
     async create() {
@@ -615,176 +609,170 @@ class CharacterDisplayScene extends Phaser.Scene {
         return allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
     }
 
-    
-    showQuestion = () => {
-    this.clearScene();
-    this.answered = false;
 
-    if (this.currentQuestionIndex >= this.questions.length) {
-        this.scene.start("QuizCompletedScene", {
-            score: this.correctAnswers,
-            total: this.questions.length
+
+    showQuestion = () => {
+        this.clearScene();
+
+        if (this.currentQuestionIndex >= this.questions.length) {
+            this.scene.start("QuizCompletedScene", {
+                score: this.correctAnswers,
+                total: this.questions.length
+            });
+            return;
+        }
+
+        const questionData = this.questions[this.currentQuestionIndex];
+        const centerX = this.cameras.main.centerX;
+        const centerY = this.cameras.main.centerY;
+
+        this.add.rectangle(centerX, centerY - 150, 750, 120, 0x111111)
+            .setOrigin(0.5)
+            .setStrokeStyle(4, 0xFF007F);
+
+        this.add.text(centerX, centerY - 150, `QUESTION:\n${questionData.question}`, {
+            fontSize: "20px",
+            fill: "#00FFFF",
+            fontFamily: "Pixelify Sans",
+            fontStyle: "bold",
+            wordWrap: { width: 700 },
+            align: "center"
+        }).setOrigin(0.5);
+
+        this.answerBoxes = [];
+        this.correctAnswerIndex = questionData.options.findIndex(option => option.trim() === questionData.answer.trim());
+
+        const shuffledOptions = Phaser.Utils.Array.Shuffle(questionData.options);
+
+        shuffledOptions.forEach((option, index) => {
+            let yPos = centerY - 50 + index * 80;
+            let optionBox = this.add.rectangle(centerX, yPos, 650, 70, 0x222222)
+                .setOrigin(0.5)
+                .setStrokeStyle(3, 0x00FFFF);
+
+            let optionText = this.add.text(centerX, yPos, `🟡 ${option}`, {
+                fontSize: "18px",
+                fill: "#FF007F",
+                fontFamily: "Pixelify Sans",
+                fontStyle: "bold"
+            }).setOrigin(0.5)
+                .setInteractive()
+                .on("pointerdown", () => {
+                    if (!this.answeredQuestions[this.currentQuestionIndex]) {
+                        this.checkAnswer(index, optionBox, shuffledOptions);
+                    }
+                });
+
+            optionText.on("pointerover", () => {
+                if (!this.answeredQuestions[this.currentQuestionIndex]) {
+                    optionBox.setStrokeStyle(4, 0xFFFF00);
+                    optionText.setColor("#FFFF00");
+                }
+            });
+
+            optionText.on("pointerout", () => {
+                optionBox.setStrokeStyle(3, 0x00FFFF);
+                optionText.setColor("#FF007F");
+            });
+
+            this.answerBoxes.push(optionBox);
         });
-        return;
+
+        if (this.answeredQuestions[this.currentQuestionIndex] !== undefined) {
+            this.showAnswer(this.answeredQuestions[this.currentQuestionIndex]);
+        }
+
+        this.createNavigationButtons();
     }
 
-    const baseCharacterName = this.selectedCharacter.split('_')[0];
-    this.character.setTexture(`${baseCharacterName}_normal`);
+    checkAnswer = (index, optionBox, options) => {
+        this.answeredQuestions[this.currentQuestionIndex] = index;
 
-    const questionData = this.questions[this.currentQuestionIndex];
-    const centerX = this.cameras.main.centerX;
-    const centerY = this.cameras.main.centerY;
+        const baseCharacterName = this.selectedCharacter.split('_')[0];
+        const correctOptionIndex = options.findIndex(opt => opt.trim() === this.questions[this.currentQuestionIndex].answer.trim());
 
-    let questionBox = this.add.rectangle(centerX, centerY - 150, 750, 120, 0x111111)
-        .setOrigin(0.5)
-        .setStrokeStyle(4, 0xFF007F); 
+        if (index === correctOptionIndex) {
+            optionBox.setFillStyle(0x32CD32);
+            this.correctAnswers++;
+            this.character.setTexture(`${baseCharacterName}_happy`);
+            this.time.delayedCall(1000, () => this.nextQuestion());
+        } else {
+            optionBox.setFillStyle(0xFF6347);
+            this.character.setTexture(`${baseCharacterName}_sad`);
 
-    this.add.text(centerX, centerY - 150, `QUESTION:\n${questionData.question}`, { 
-        fontSize: "20px", 
-        fill: "#00FFFF",
-        fontFamily: "Pixelify Sans",
-        fontStyle: "bold",
-        wordWrap: { width: 700 },
-        align: "center" 
-    }).setOrigin(0.5);
+            const correctOptionBox = this.answerBoxes[correctOptionIndex];
+            correctOptionBox.setFillStyle(0x32CD32);
 
-    this.tweens.add({
-        targets: questionBox,
-        alpha: { from: 1, to: 0.8 },
-        duration: 600,
-        yoyo: true,
-        repeat: -1
-    });
+            this.nextButton.setVisible(true);
+            this.nextButtonText.setVisible(true);
+        }
 
-    this.answerBoxes = [];
+        this.answerBoxes.forEach(box => box.disableInteractive());
+    }
 
-    // Shuffle options and track the new correct index
-    const shuffledOptions = [...questionData.options].sort(() => Math.random() - 0.5);
-    this.correctAnswerIndex = shuffledOptions.findIndex(option => option.trim() === questionData.answer.trim());
+    showAnswer = (index) => {
+        const baseCharacterName = this.selectedCharacter.split('_')[0];
+        const correctOptionIndex = this.questions[this.currentQuestionIndex].options.findIndex(option => option.trim() === this.questions[this.currentQuestionIndex].answer.trim());
 
-    shuffledOptions.forEach((option, index) => {
-        let yPos = centerY - 50 + index * 80;
-        let optionBox = this.add.rectangle(centerX, yPos, 650, 70, 0x222222)
-            .setOrigin(0.5)
-            .setStrokeStyle(3, 0x00FFFF);
+        this.answerBoxes[index].setFillStyle(index === correctOptionIndex ? 0x32CD32 : 0xFF6347);
+        if (index !== correctOptionIndex) {
+            this.answerBoxes[correctOptionIndex].setFillStyle(0x32CD32);
+        }
 
-        let optionText = this.add.text(centerX, yPos, `🟡 ${option}`, { 
-            fontSize: "18px", 
-            fill: "#FF007F", 
-            fontFamily: "Pixelify Sans",
-            fontStyle: "bold" 
-        }).setOrigin(0.5)
-        .setInteractive()
-        .on("pointerdown", () => {
-            if (!this.answered) {
-                this.checkAnswer(index, optionBox);
-            }
-        });
+        this.answerBoxes.forEach(box => box.disableInteractive());
+    }
 
-        optionText.on("pointerover", () => {
-            optionBox.setStrokeStyle(4, 0xFFFF00);
-            optionText.setColor("#FFFF00");
-        });
+    nextQuestion = () => {
+        const baseCharacterName = this.selectedCharacter.split('_')[0];
+        this.character.setTexture(`${baseCharacterName}_normal`); // Reset character to normal
 
-        optionText.on("pointerout", () => {
-            optionBox.setStrokeStyle(3, 0x00FFFF);
-            optionText.setColor("#FF007F");
-        });
-
-        this.answerBoxes.push(optionBox);
-    });
-
-    this.createExitButton();
-    this.createNavigationButtons();
-}
-
+        this.currentQuestionIndex++;
+        this.showQuestion();
+    }
 
     createNavigationButtons = () => {
         const centerX = this.cameras.main.centerX;
         const centerY = this.cameras.main.centerY + 200;
 
         if (this.currentQuestionIndex > 0) {
-            let backButton = this.add.rectangle(centerX - 150, centerY + 100, 120, 50, 0xFF1493) // Hot pink
+            let backButton = this.add.rectangle(centerX - 150, centerY + 100, 120, 50, 0xFF1493)
                 .setOrigin(0.5)
-                .setStrokeStyle(4, 0x8A2BE2); // Neon purple border
+                .setStrokeStyle(4, 0x8A2BE2);
 
-            let backButtonText = this.add.text(centerX - 150, centerY + 100, "⬅ Back", {
+            this.add.text(centerX - 150, centerY + 100, "⬅ Back", {
                 fontSize: "18px",
                 fontFamily: "Pixelify Sans",
-                fill: "#FFD700", // Cyberpunk yellow text
+                fill: "#FFD700",
                 stroke: "#000000",
                 strokeThickness: 3
             }).setOrigin(0.5)
-            .setInteractive()
-            .on("pointerdown", () => {
-                this.currentQuestionIndex--;
-                this.showQuestion();
-            })
-            .on("pointerover", () => {
-                backButton.setFillStyle(0x8A2BE2); // Changes to neon purple on hover
-            })
-            .on("pointerout", () => {
-                backButton.setFillStyle(0xFF1493); // Reverts to hot pink
-            });
+                .setInteractive()
+                .on("pointerdown", () => {
+                    const baseCharacterName = this.selectedCharacter.split('_')[0];
+                    this.character.setTexture(`${baseCharacterName}_normal`); // Reset on back too
+
+                    this.currentQuestionIndex--;
+                    this.showQuestion();
+                });
         }
 
-        this.nextButton = this.add.rectangle(centerX + 150, centerY + 100, 120, 50, 0x8A2BE2) // Neon purple
+        this.nextButton = this.add.rectangle(centerX + 150, centerY + 100, 120, 50, 0x8A2BE2)
             .setOrigin(0.5)
-            .setStrokeStyle(4, 0xFF1493); // Hot pink border
+            .setStrokeStyle(4, 0xFF1493);
 
         this.nextButtonText = this.add.text(centerX + 150, centerY + 100, "Next ➡", {
             fontSize: "18px",
             fontFamily: "Pixelify Sans",
-            fill: "#FFD700", // Cyberpunk yellow text
+            fill: "#FFD700",
             stroke: "#000000",
             strokeThickness: 3
         }).setOrigin(0.5)
-        .setInteractive()
-        .on("pointerdown", () => this.nextQuestion())
-        .on("pointerover", () => {
-            this.nextButton.setFillStyle(0xFF1493); // Changes to hot pink on hover
-        })
-        .on("pointerout", () => {
-            this.nextButton.setFillStyle(0x8A2BE2); // Reverts to neon purple
-        });
+            .setInteractive()
+            .on("pointerdown", () => this.nextQuestion());
 
         this.nextButton.setVisible(false);
         this.nextButtonText.setVisible(false);
-
     }
-
-    nextQuestion = () => {
-        this.currentQuestionIndex++;
-        this.showQuestion();
-    }
-
-    checkAnswer = (index, optionBox) => {
-    this.answered = true;
-
-    const baseCharacterName = this.selectedCharacter.split('_')[0];
-
-    if (index === this.correctAnswerIndex) {
-        optionBox.setFillStyle(0x32CD32); // Green for correct answer
-        this.correctAnswers++;
-        this.character.setTexture(`${baseCharacterName}_happy`);
-        this.time.delayedCall(1000, () => this.nextQuestion());
-    } else {
-        optionBox.setFillStyle(0xFF6347); // Red for wrong answer
-        this.character.setTexture(`${baseCharacterName}_sad`);
-
-        // Highlight the correct answer in green
-        const correctOptionBox = this.answerBoxes[this.correctAnswerIndex];
-        correctOptionBox.setFillStyle(0x32CD32);
-
-        // Show the next button for moving forward
-        this.nextButton.setVisible(true);
-        this.nextButtonText.setVisible(true);
-    }
-
-    // Disable further interaction with answer options
-    this.answerBoxes.forEach(box => box.disableInteractive());
-}
-
 
     clearScene() {
         this.children.list.forEach(child => {
@@ -818,8 +806,9 @@ class CharacterDisplayScene extends Phaser.Scene {
                 yoyo: true,
                 repeat: -1
             });
-        }
+        }   
 }
+
 
 class QuizCompletedScene extends Phaser.Scene {
     constructor() {
