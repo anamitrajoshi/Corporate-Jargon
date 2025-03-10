@@ -544,7 +544,7 @@ class CharacterDisplayScene extends Phaser.Scene {
     }
         }
 
-        class QuizScene extends Phaser.Scene {
+    class QuizScene extends Phaser.Scene {
     constructor() {
         super({ key: 'QuizScene' });
     }
@@ -580,11 +580,8 @@ class CharacterDisplayScene extends Phaser.Scene {
             this.cameras.main.centerY,
             `level${this.level}_bg`
         ).setOrigin(0.5)
-         .setDisplaySize(this.cameras.main.width, this.cameras.main.height)
-         .setDepth(-1);
-         
-        
-
+        .setDisplaySize(this.cameras.main.width, this.cameras.main.height)
+        .setDepth(-1);
 
         this.character = this.add.image(150, this.cameras.main.centerY + 200, this.selectedCharacter)
             .setOrigin(0.5)
@@ -595,10 +592,12 @@ class CharacterDisplayScene extends Phaser.Scene {
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
-            this.questions = await response.json();
-            console.log("Questions fetched:", this.questions);
+            let allQuestions = await response.json();
+            console.log("Questions fetched:", allQuestions);
 
-            if (this.questions.length > 0) {
+            if (allQuestions.length > 0) {
+                // Shuffle and pick 5 random questions
+                this.questions = this.getRandomQuestions(allQuestions, 5);
                 this.showQuestion();
             } else {
                 this.add.text(300, 200, "No questions found!", { fontSize: "24px", fill: "#f00" });
@@ -610,10 +609,16 @@ class CharacterDisplayScene extends Phaser.Scene {
 
         this.createExitButton();
     }
+
+    // Helper function to shuffle and pick N random questions
+    getRandomQuestions(allQuestions, count) {
+        return allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
+    }
+
     
     showQuestion = () => {
     this.clearScene();
-    this.answered = false; // Reset answered state for the new question
+    this.answered = false;
 
     if (this.currentQuestionIndex >= this.questions.length) {
         this.scene.start("QuizCompletedScene", {
@@ -623,7 +628,6 @@ class CharacterDisplayScene extends Phaser.Scene {
         return;
     }
 
-    // Reset character to normal expression at the start of each question
     const baseCharacterName = this.selectedCharacter.split('_')[0];
     this.character.setTexture(`${baseCharacterName}_normal`);
 
@@ -633,29 +637,32 @@ class CharacterDisplayScene extends Phaser.Scene {
 
     let questionBox = this.add.rectangle(centerX, centerY - 150, 750, 120, 0x111111)
         .setOrigin(0.5)
-        .setStrokeStyle(4, 0xFF007F); // Neon Pink Border
+        .setStrokeStyle(4, 0xFF007F); 
 
-        this.add.text(centerX, centerY - 150, `QUESTION:\n${questionData.question}`, { 
-            fontSize: "20px", 
-            fill: "#00FFFF", // Neon Cyan Text
-            fontFamily: "Pixelify Sans",
-            fontStyle: "bold",
-            wordWrap: { width: 700 },
-            align: "center" 
-        }).setOrigin(0.5);
+    this.add.text(centerX, centerY - 150, `QUESTION:\n${questionData.question}`, { 
+        fontSize: "20px", 
+        fill: "#00FFFF",
+        fontFamily: "Pixelify Sans",
+        fontStyle: "bold",
+        wordWrap: { width: 700 },
+        align: "center" 
+    }).setOrigin(0.5);
 
-        this.tweens.add({
-            targets: questionBox,
-            alpha: { from: 1, to: 0.8 },
-            duration: 600,
-            yoyo: true,
-            repeat: -1
-        });
+    this.tweens.add({
+        targets: questionBox,
+        alpha: { from: 1, to: 0.8 },
+        duration: 600,
+        yoyo: true,
+        repeat: -1
+    });
 
     this.answerBoxes = [];
-    this.correctAnswerIndex = questionData.options.findIndex(option => option.trim() === questionData.answer.trim());
 
-    questionData.options.forEach((option, index) => {
+    // Shuffle options and track the new correct index
+    const shuffledOptions = [...questionData.options].sort(() => Math.random() - 0.5);
+    this.correctAnswerIndex = shuffledOptions.findIndex(option => option.trim() === questionData.answer.trim());
+
+    shuffledOptions.forEach((option, index) => {
         let yPos = centerY - 50 + index * 80;
         let optionBox = this.add.rectangle(centerX, yPos, 650, 70, 0x222222)
             .setOrigin(0.5)
@@ -663,19 +670,19 @@ class CharacterDisplayScene extends Phaser.Scene {
 
         let optionText = this.add.text(centerX, yPos, `🟡 ${option}`, { 
             fontSize: "18px", 
-            fill: "#FF007F", // Neon Pink Text
+            fill: "#FF007F", 
             fontFamily: "Pixelify Sans",
             fontStyle: "bold" 
         }).setOrigin(0.5)
         .setInteractive()
         .on("pointerdown", () => {
-            if (!this.answered) { // Prevent re-answering
+            if (!this.answered) {
                 this.checkAnswer(index, optionBox);
             }
         });
-        // Hover effect: Glow effect on hover
+
         optionText.on("pointerover", () => {
-            optionBox.setStrokeStyle(4, 0xFFFF00); // Neon Yellow Glow
+            optionBox.setStrokeStyle(4, 0xFFFF00);
             optionText.setColor("#FFFF00");
         });
 
@@ -690,6 +697,7 @@ class CharacterDisplayScene extends Phaser.Scene {
     this.createExitButton();
     this.createNavigationButtons();
 }
+
 
     createNavigationButtons = () => {
         const centerX = this.cameras.main.centerX;
@@ -751,19 +759,24 @@ class CharacterDisplayScene extends Phaser.Scene {
     }
 
     checkAnswer = (index, optionBox) => {
-    this.answered = true; // Mark the question as answered
+    this.answered = true;
 
-    // Extract the base character name (e.g., "character1", "character2", etc.)
     const baseCharacterName = this.selectedCharacter.split('_')[0];
 
     if (index === this.correctAnswerIndex) {
-        optionBox.setFillStyle(0x32CD32);
+        optionBox.setFillStyle(0x32CD32); // Green for correct answer
         this.correctAnswers++;
-        this.character.setTexture(`${baseCharacterName}_happy`); // Change to happy expression
-        this.time.delayedCall(1000, () => this.nextQuestion()); // Automatically go to the next question after 1 second
+        this.character.setTexture(`${baseCharacterName}_happy`);
+        this.time.delayedCall(1000, () => this.nextQuestion());
     } else {
-        optionBox.setFillStyle(0xFF6347);
-        this.character.setTexture(`${baseCharacterName}_sad`); // Change to sad expression
+        optionBox.setFillStyle(0xFF6347); // Red for wrong answer
+        this.character.setTexture(`${baseCharacterName}_sad`);
+
+        // Highlight the correct answer in green
+        const correctOptionBox = this.answerBoxes[this.correctAnswerIndex];
+        correctOptionBox.setFillStyle(0x32CD32);
+
+        // Show the next button for moving forward
         this.nextButton.setVisible(true);
         this.nextButtonText.setVisible(true);
     }
@@ -771,6 +784,7 @@ class CharacterDisplayScene extends Phaser.Scene {
     // Disable further interaction with answer options
     this.answerBoxes.forEach(box => box.disableInteractive());
 }
+
 
     clearScene() {
         this.children.list.forEach(child => {
